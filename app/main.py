@@ -1,23 +1,80 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from core.ai import perguntar_ai, resetar_conversa
+import os
+import platform
+import webbrowser
+import subprocess
 
-print("=" * 50)
-print("   Assistente Tech para Idosos - SeniorAI")
-print("=" * 50)
-print("Digite seu problema e pressione Enter.")
-print("Digite 'sair' para encerrar.\n")
+app = FastAPI()
 
-while True:
-    problema = input("Você: ")
+# Permite o Flutter se comunicar com o backend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-    if problema.lower() == "sair":
-        print("Até logo!")
-        break
+class Mensagem(BaseModel):
+    mensagem: str
 
-    if problema.lower() == "reiniciar":
-        resetar_conversa()
-        print("Conversa reiniciada!\n")
-        continue
+def coletar_ambiente():
+    """Coleta informações do ambiente do usuário automaticamente."""
+    ambiente = {}
 
-    resposta = perguntar_ai(problema)
-    print(f"\nAssistente: {resposta}\n")
-    print("-" * 50)
+    # Sistema operacional
+    ambiente["sistema_operacional"] = platform.system() + " " + platform.release()
+
+    # Navegador padrão
+    try:
+        browser = webbrowser.get().name
+        ambiente["navegador"] = browser
+    except:
+        ambiente["navegador"] = "desconhecido"
+
+    # Volume atual (Windows)
+    try:
+        from ctypes import cast, POINTER
+        from comtypes import CLSCTX_ALL
+        from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+        devices = AudioUtilities.GetSpeakers()
+        interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+        volume = cast(interface, POINTER(IAudioEndpointVolume))
+        mudo = volume.GetMute()
+        nivel = int(volume.GetMasterVolumeLevelScalar() * 100)
+        ambiente["volume"] = f"{nivel}%" 
+        ambiente["mudo"] = "sim" if mudo else "não"
+    except:
+        ambiente["volume"] = "desconhecido"
+        ambiente["mudo"] = "desconhecido"
+
+    return ambiente
+
+@app.get("/")
+def raiz():
+    return {"status": "SeniorAI backend rodando!"}
+
+@app.post("/perguntar")
+def perguntar(body: Mensagem):
+    ambiente = coletar_ambiente()
+
+    # Monta contexto do ambiente para a AI
+    contexto = f"""
+    Informações do ambiente do usuário:
+    - Sistema operacional: {ambiente['sistema_operacional']}
+    - Navegador padrão: {ambiente['navegador']}
+    - Volume atual: {ambiente['volume']}
+    - Mudo: {ambiente['mudo']}
+    
+    Pergunta do usuário: {body.mensagem}
+    """
+
+    resposta = perguntar_ai(contexto)
+    return {"resposta": resposta, "ambiente": ambiente}
+
+@app.post("/resetar")
+def resetar():
+    resetar_conversa()
+    return {"status": "Conversa reiniciada!"}
