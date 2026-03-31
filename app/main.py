@@ -72,7 +72,22 @@ def perguntar(body: Mensagem):
     """
 
     resposta = perguntar_ai(contexto)
+
+# Fala a resposta em voz alta
+    from services.voice import falar
+    falar(resposta)
+
     return {"resposta": resposta, "ambiente": ambiente}
+
+@app.post("/ouvir")
+def ouvir():
+    """Ativa o microfone e retorna o texto falado pelo usuário."""
+    from services.voice import ouvir_usuario
+    texto = ouvir_usuario()
+    if texto:
+        return {"texto": texto, "sucesso": True}
+    else:
+        return {"texto": "", "sucesso": False}
 
 @app.post("/resetar")
 def resetar():

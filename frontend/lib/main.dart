@@ -47,6 +47,7 @@ static const Color spaceBlack = Color(0xFF121313);
 
   final String _apiUrl = 'http://localhost:8080/perguntar';
   final String _resetUrl = 'http://localhost:8080/resetar';
+  final String _ouvirUrl = 'http://localhost:8080/ouvir';
 
   Future<void> _enviarMensagem(String texto) async {
     if (texto.trim().isEmpty) return;
@@ -92,6 +93,32 @@ static const Color spaceBlack = Color(0xFF121313);
       _mostraBotoes = false;
       _audioTocando = false;
     });
+  }
+
+  Future<void> _ouvirMicrofone() async {
+    setState(() {
+      _aguardandoResposta = true;
+    });
+
+    try {
+      final response = await http.post(Uri.parse(_ouvirUrl))
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
+        if (data['sucesso'] == true && data['texto'] != '') {
+          await _enviarMensagem(data['texto']);
+        } else {
+          setState(() {
+            _aguardandoResposta = false;
+          });
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _aguardandoResposta = false;
+      });
+    }
   }
 
   void _adicionarErro(String msg) {
@@ -454,7 +481,7 @@ static const Color spaceBlack = Color(0xFF121313);
                   height: 52,
                   margin: const EdgeInsets.only(right: 10),
                   child: ElevatedButton(
-                    onPressed: () {},
+                    onPressed: _ouvirMicrofone,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: mistGrey,
                       foregroundColor: spaceBlack,
